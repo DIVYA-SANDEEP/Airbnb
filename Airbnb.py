@@ -321,28 +321,66 @@ if selected == "Analysis":
     if list1=="Price Analysis":
             countries_list = extract_countries()
             selected_country = st.selectbox("Select a country", countries_list)
-            if selected_country:  
+            if selected_country: 
                 price_analysis=price(selected_country)
                 price_analysis = [{k: float(str(v)) if isinstance(v, Decimal128) else v for k, v in row.items()} for row in price_analysis]
                 df=pd.DataFrame(price_analysis)
                 df = df.dropna()
-                df.columns=["Name","Room_Type","Property_Type","Price","Security Deposit","Total","Cleaning Fees"]
+                df.columns=["Name","Room_Type","Property_Type","Price","Security Deposit","Cleaning Fees","Total"]
                 st.dataframe(df)
-
+                
+                df_filtered = df[(df["Security Deposit"] == 0) & (df["Cleaning Fees"] == 0)]
+                price_chart_data = df_filtered[["Name", "Price"]]
+                fig = px.bar(price_chart_data, x="Name", y="Price", labels={"Name": "Property", "Price": "Price"})
+                
+                fig.update_layout(title="Prices of Properties with No Cleaning Fee and Security Deposit", 
+                    xaxis_title="Property", 
+                    yaxis_title="Price")                
+                st.plotly_chart(fig)
+                
     if list1=="Availability Analysis":
-       availability_data = room_availability_by_country()
+       availability_data = df
+       def extract_countries():
+         return df["Country"].unique().tolist()
+       def plot_bar_chart(df, x, y, title):
+          fig = px.bar(df, x=x, y=y, title=title, color=x)  
+          st.plotly_chart(fig)
+       
+    
+      
 
-       df1 = pd.DataFrame(availability_data)
+       if 'Country' in df.columns:
+            countries_list = extract_countries()
+            selected_country = st.selectbox("Select a country", countries_list)
 
-       selected_country = st.selectbox("Select a country", sorted(df['Country'].unique()))
-       filtered_df = df[df['Country'] == selected_country]
-       selected_room_type = st.multiselect("Select room types", filtered_df['Room_type'].unique())
-       filtered_df = filtered_df[filtered_df['Room_type'].isin(selected_room_type)]
+       if selected_country:
+           st.subheader(f"Availability Analysis for {selected_country}")
+           availability_data = df[df["Country"] == selected_country]
 
-       columns_to_display = st.multiselect("Select columns to display", filtered_df.columns)
-       if not columns_to_display:
-         st.warning("Please select columns to display.")
-       else:
-         st.write("Room Availability by Country and Room Type:")
-         st.dataframe(filtered_df[columns_to_display])
+           required_columns = ["Room_type", "Availability_30", "Availability_60", "Availability_90", "Availability_365"]
+
+           tabs = st.tabs(["Availability 30", "Availability 60", "Availability 90", "Availability 365"])
+
+           time_ranges = [30, 60, 90, 365]
+           for tab, time_range in zip(tabs, time_ranges):
+            with tab:
+                   st.subheader(f"Availability {time_range} Days")
+                   availability_col = f"Availability_{time_range}"
+                   min_val = int(availability_data[availability_col].min())
+                   max_val = int(availability_data[availability_col].max())
+
+                   selected_range = st.slider(
+                      f"Select range for {availability_col}",
+                      min_value=min_val,
+                      max_value=max_val,
+                      value=(min_val, max_val),
+                      step=1)
+                    
+                   filtered_data = availability_data[(availability_data[availability_col] >= selected_range[0]) & (availability_data[availability_col] <= selected_range[1])]
+
+                   room_type_counts = filtered_data.groupby("Room_type")[availability_col].sum().reset_index()
+                   plot_bar_chart(room_type_counts, x="Room_type", y=availability_col, title=f"{availability_col} by Room Type")
+             
+    
+
         
